@@ -33,7 +33,7 @@ pip install -r requirements.txt
 Setelah instalasi selesai, jalankan perintah berikut untuk membuka dashboard interaktif di browser Anda:
 
 ```bash
-streamlit run dashboard/dashboard.py
+streamlit run dashboard.py
 ```
 
 Aplikasi secara otomatis akan terbuka pada alamat lokal default: `http://localhost:8501`.
