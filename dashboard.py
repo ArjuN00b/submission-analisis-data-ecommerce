@@ -1,13 +1,4 @@
 import streamlit as st
-
-print("CHECKPOINT 1: Dashboard mulai", flush=True)
-
-st.title("Tes Dashboard")
-st.write("Aplikasi berhasil dirender!")
-
-print("CHECKPOINT 2: Dashboard selesai", flush=True)
-
-import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
