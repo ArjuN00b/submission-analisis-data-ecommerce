@@ -121,7 +121,6 @@ menu = st.sidebar.selectbox(
 )
 
 st.sidebar.divider()
-st.sidebar.success("Dataset berhasil dimuat.")
 
 st.sidebar.caption(
     f"""
