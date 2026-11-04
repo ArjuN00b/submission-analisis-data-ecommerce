@@ -5,41 +5,57 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 
+# =========================================================
 # 1. KONFIGURASI DASHBOARD
+# =========================================================
 
 st.set_page_config(
     page_title="E-Commerce Dashboard",
+    page_icon="🛒",
     layout="wide"
 )
 
 BASE_DIR = Path(__file__).resolve().parent
 
 st.title("🛒 E-Commerce Public Dataset Analysis Dashboard")
+
 st.markdown(
-    "Dashboard interaktif untuk menganalisis perilaku pelanggan, "
-    "performa pengiriman, dan ulasan produk."
+    """
+    Dashboard interaktif untuk menganalisis perilaku pelanggan,
+    performa pengiriman, dan kualitas produk berdasarkan
+    E-Commerce Public Dataset.
+    """
 )
 
-# 2. LOAD DATA
+# =========================================================
+# 2. LOAD DATASET
+# =========================================================
 
 @st.cache_data
 def load_data():
-    # RFM: hanya membutuhkan kolom Segment
+
+    # Dataset RFM
     rfm_df = pd.read_csv(
         BASE_DIR / "main_data_rfm.csv",
         usecols=["Segment"]
     )
 
-    # Geo: deteksi nama kolom state yang tersedia
+    # Dataset Geografis dan Logistik
     geo_path = BASE_DIR / "main_data_geo.csv"
-    geo_columns = pd.read_csv(geo_path, nrows=0).columns.tolist()
+
+    geo_columns = pd.read_csv(
+        geo_path,
+        nrows=0
+    ).columns.tolist()
 
     if "customer_state" in geo_columns:
         cust_state_col = "customer_state"
     elif "customer_state_x" in geo_columns:
         cust_state_col = "customer_state_x"
     else:
-        raise ValueError("Kolom customer_state tidak ditemukan.")
+        raise ValueError(
+            "Kolom customer_state tidak ditemukan dalam dataset geografis."
+        )
 
     geo_df = pd.read_csv(
         geo_path,
@@ -50,7 +66,7 @@ def load_data():
         ]
     )
 
-    # Reviews: hanya membaca kolom yang digunakan dashboard
+    # Dataset Produk dan Review
     reviews_df = pd.read_csv(
         BASE_DIR / "main_data_reviews.csv",
         usecols=[
@@ -66,7 +82,8 @@ def load_data():
 
 
 try:
-    rfm, geo_delivery_df, product_reviews_df, cust_state_col = load_data()
+    with st.spinner("Memuat dataset..."):
+        rfm, geo_delivery_df, product_reviews_df, cust_state_col = load_data()
 
 except Exception as e:
     st.error("Terjadi kesalahan ketika memuat dataset.")
@@ -74,9 +91,27 @@ except Exception as e:
     st.stop()
 
 
-# 3. SIDEBAR NAVIGASI
+# =========================================================
+# 3. FUNGSI BANTUAN
+# =========================================================
 
-st.sidebar.header("Filter & Navigasi")
+def show_chart(fig):
+    """Menampilkan grafik dan membersihkan figure."""
+    st.pyplot(fig, clear_figure=True)
+    plt.close(fig)
+
+
+def show_error(error):
+    """Menampilkan informasi error pada dashboard."""
+    st.error("Terjadi kesalahan ketika membuat visualisasi.")
+    st.exception(error)
+
+
+# =========================================================
+# 4. SIDEBAR NAVIGASI
+# =========================================================
+
+st.sidebar.header("📊 Filter & Navigasi")
 
 menu = st.sidebar.selectbox(
     "Pilih Halaman Analisis:",
@@ -87,273 +122,476 @@ menu = st.sidebar.selectbox(
     ]
 )
 
+st.sidebar.divider()
 
-# FUNGSI MENAMPILKAN GRAFIK
+st.sidebar.success("Dataset berhasil dimuat.")
 
-def show_chart(fig):
-    st.pyplot(fig, clear_figure=True)
-    plt.close(fig)
+st.sidebar.caption(
+    f"Data RFM: {len(rfm):,} baris\n\n"
+    f"Data Geografis: {len(geo_delivery_df):,} baris\n\n"
+    f"Data Review: {len(product_reviews_df):,} baris"
+)
 
 
-# 4. SEGMENTASI PELANGGAN (RFM)
+# =========================================================
+# 5. SEGMENTASI PELANGGAN (RFM)
+# =========================================================
 
 if menu == "Segmentasi Pelanggan (RFM)":
 
     st.header("Segmentasi Pelanggan Berdasarkan Analisis RFM")
 
-    segment_counts = (
-        rfm["Segment"]
-        .value_counts()
-        .reset_index()
+    st.markdown(
+        """
+        Halaman ini menampilkan distribusi pelanggan berdasarkan
+        hasil segmentasi Recency, Frequency, dan Monetary (RFM).
+        """
     )
 
-    segment_counts.columns = ["Segment", "Count"]
+    try:
 
-    col1, col2 = st.columns([2, 1])
-
-    with col1:
-        fig, ax = plt.subplots(figsize=(10, 5))
-
-        sns.barplot(
-            x="Count",
-            y="Segment",
-            data=segment_counts,
-            hue="Segment",
-            palette="viridis",
-            legend=False,
-            ax=ax
+        segment_counts = (
+            rfm["Segment"]
+            .value_counts()
+            .reset_index()
         )
 
-        ax.set_title("Distribusi Segmen Pelanggan")
-        ax.set_xlabel("Jumlah Pelanggan")
-        ax.set_ylabel("Segmen")
+        segment_counts.columns = [
+            "Segment",
+            "Count"
+        ]
 
-        fig.tight_layout()
-        show_chart(fig)
+        col1, col2 = st.columns([2, 1])
 
-    with col2:
-        st.subheader("Persentase Segmen")
+        # Grafik distribusi segmen
+        with col1:
 
-        pct = rfm["Segment"].value_counts(normalize=True) * 100
+            st.subheader("Distribusi Segmen Pelanggan")
 
-        for seg, val in pct.items():
-            st.metric(
-                label=seg,
-                value=f"{val:.2f}%"
+            fig, ax = plt.subplots(figsize=(10, 5))
+
+            sns.barplot(
+                x="Count",
+                y="Segment",
+                data=segment_counts,
+                hue="Segment",
+                palette="viridis",
+                legend=False,
+                ax=ax
             )
 
+            ax.set_title("Distribusi Segmen Pelanggan")
+            ax.set_xlabel("Jumlah Pelanggan")
+            ax.set_ylabel("Segmen")
 
-# 5. ANALISIS LOGISTIK & GEOGRAFIS
+            fig.tight_layout()
+
+            show_chart(fig)
+
+        # Persentase segmen
+        with col2:
+
+            st.subheader("Persentase Segmen")
+
+            pct = (
+                rfm["Segment"]
+                .value_counts(normalize=True) * 100
+            )
+
+            for seg, val in pct.items():
+
+                st.metric(
+                    label=seg,
+                    value=f"{val:.2f}%"
+                )
+
+    except Exception as e:
+        show_error(e)
+
+
+# =========================================================
+# 6. ANALISIS LOGISTIK & GEOGRAFIS
+# =========================================================
 
 elif menu == "Analisis Logistik & Geografis":
 
     st.header("Analisis Sebaran Geografis & Logistik Pengiriman")
 
-    # Pastikan waktu pengiriman berupa angka
-    geo_delivery_df["actual_delivery_time"] = pd.to_numeric(
-        geo_delivery_df["actual_delivery_time"],
-        errors="coerce"
+    st.markdown(
+        """
+        Halaman ini digunakan untuk menganalisis rata-rata waktu
+        pengiriman berdasarkan lokasi pelanggan serta membandingkan
+        pengiriman dalam dan luar state.
+        """
     )
 
-    geo_delivery_df = geo_delivery_df.dropna(
-        subset=[
-            cust_state_col,
-            "seller_state",
-            "actual_delivery_time"
-        ]
-    )
+    try:
 
-    col1, col2 = st.columns(2)
+        # Konversi data waktu pengiriman
+        geo_delivery_df["actual_delivery_time"] = pd.to_numeric(
+            geo_delivery_df["actual_delivery_time"],
+            errors="coerce"
+        )
 
-    with col1:
-        st.subheader("Rata-rata Waktu Pengiriman Per State")
+        # Menghapus data kosong
+        geo_delivery_df = geo_delivery_df.dropna(
+            subset=[
+                cust_state_col,
+                "seller_state",
+                "actual_delivery_time"
+            ]
+        )
 
-        state_delivery = (
-            geo_delivery_df
-            .groupby(cust_state_col)["actual_delivery_time"]
-            .mean()
-            .reset_index()
-            .sort_values(
-                by="actual_delivery_time",
-                ascending=False
+        if geo_delivery_df.empty:
+            st.warning(
+                "Tidak terdapat data geografis yang valid untuk ditampilkan."
             )
-        )
+            st.stop()
 
-        fig, ax = plt.subplots(figsize=(10, 8))
+        col1, col2 = st.columns(2)
 
-        sns.barplot(
-            x="actual_delivery_time",
-            y=cust_state_col,
-            data=state_delivery,
-            hue=cust_state_col,
-            palette="coolwarm",
-            legend=False,
-            ax=ax
-        )
+        # -------------------------------------------------
+        # Grafik 1: Rata-rata waktu pengiriman per state
+        # -------------------------------------------------
 
-        ax.set_title("Rata-rata Waktu Pengiriman per State")
-        ax.set_xlabel("Rata-rata Waktu Pengiriman")
-        ax.set_ylabel("Customer State")
+        with col1:
 
-        fig.tight_layout()
-        show_chart(fig)
+            st.subheader("Rata-rata Waktu Pengiriman Per State")
 
-    with col2:
-        st.subheader("Dampak Lokasi Penjual-Pembeli")
+            state_delivery = (
+                geo_delivery_df
+                .groupby(cust_state_col)["actual_delivery_time"]
+                .mean()
+                .reset_index()
+                .sort_values(
+                    by="actual_delivery_time",
+                    ascending=False
+                )
+            )
 
-        # Membuat kolom baru tanpa mengubah DataFrame utama
-        same_state_df = geo_delivery_df.copy()
+            fig, ax = plt.subplots(figsize=(10, 8))
 
-        same_state_df["Lokasi Pengiriman"] = (
-            same_state_df[cust_state_col]
-            == same_state_df["seller_state"]
-        ).map({
-            True: "Dalam Negara Bagian",
-            False: "Luar Negara Bagian"
-        })
+            sns.barplot(
+                x="actual_delivery_time",
+                y=cust_state_col,
+                data=state_delivery,
+                hue=cust_state_col,
+                palette="coolwarm",
+                legend=False,
+                ax=ax
+            )
 
-        # Hitung rata-rata waktu pengiriman
-        delivery_comparison = (
-            same_state_df
-            .groupby("Lokasi Pengiriman")["actual_delivery_time"]
-            .mean()
-            .reset_index()
-        )
+            ax.set_title(
+                "Rata-rata Waktu Pengiriman per State"
+            )
 
-        fig, ax = plt.subplots(figsize=(10, 8))
+            ax.set_xlabel(
+                "Rata-rata Waktu Pengiriman"
+            )
 
-        sns.barplot(
-            x="Lokasi Pengiriman",
-            y="actual_delivery_time",
-            data=delivery_comparison,
-            hue="Lokasi Pengiriman",
-            palette="Set2",
-            legend=False,
-            ax=ax
-        )
+            ax.set_ylabel(
+                "Customer State"
+            )
 
-        ax.set_title("Perbandingan Waktu Pengiriman")
-        ax.set_xlabel("Lokasi Penjual dan Pembeli")
-        ax.set_ylabel("Rata-rata Waktu Pengiriman")
+            fig.tight_layout()
 
-        fig.tight_layout()
-        show_chart(fig)
+            show_chart(fig)
+
+        # -------------------------------------------------
+        # Grafik 2: Perbandingan lokasi penjual dan pembeli
+        # -------------------------------------------------
+
+        with col2:
+
+            st.subheader("Dampak Lokasi Penjual-Pembeli")
+
+            same_state_df = geo_delivery_df.copy()
+
+            same_state_df["Lokasi Pengiriman"] = (
+                same_state_df[cust_state_col]
+                == same_state_df["seller_state"]
+            ).map({
+                True: "Dalam Negara Bagian",
+                False: "Luar Negara Bagian"
+            })
+
+            delivery_comparison = (
+                same_state_df
+                .groupby("Lokasi Pengiriman")[
+                    "actual_delivery_time"
+                ]
+                .mean()
+                .reset_index()
+            )
+
+            fig, ax = plt.subplots(figsize=(10, 8))
+
+            sns.barplot(
+                x="Lokasi Pengiriman",
+                y="actual_delivery_time",
+                data=delivery_comparison,
+                hue="Lokasi Pengiriman",
+                palette="Set2",
+                legend=False,
+                ax=ax
+            )
+
+            ax.set_title(
+                "Perbandingan Waktu Pengiriman"
+            )
+
+            ax.set_xlabel(
+                "Lokasi Penjual dan Pembeli"
+            )
+
+            ax.set_ylabel(
+                "Rata-rata Waktu Pengiriman"
+            )
+
+            fig.tight_layout()
+
+            show_chart(fig)
+
+    except Exception as e:
+        show_error(e)
 
 
-# 6. KUALITAS PRODUK & KEPUASAN
+# =========================================================
+# 7. KUALITAS PRODUK & KEPUASAN
+# =========================================================
 
 elif menu == "Kualitas Produk & Kepuasan":
 
     st.header("Analisis Kualitas Kategori Produk & Korelasi Kepuasan")
 
-    # Pastikan kolom numerik memiliki tipe data yang sesuai
-    product_reviews_df["price"] = pd.to_numeric(
-        product_reviews_df["price"],
-        errors="coerce"
+    st.markdown(
+        """
+        Halaman ini menampilkan kategori produk dengan pendapatan
+        tertinggi, rata-rata skor ulasan, serta hubungan antara
+        waktu pengiriman dan kepuasan pelanggan.
+        """
     )
 
-    product_reviews_df["review_score"] = pd.to_numeric(
-        product_reviews_df["review_score"],
-        errors="coerce"
-    )
+    try:
 
-    product_reviews_df["actual_delivery_time"] = pd.to_numeric(
-        product_reviews_df["actual_delivery_time"],
-        errors="coerce"
-    )
+        # -------------------------------------------------
+        # Persiapan data
+        # -------------------------------------------------
 
-    # Agregasi berdasarkan kategori produk
-    category_revenue = (
-        product_reviews_df
-        .groupby("product_category_name_english")
-        .agg({
-            "price": "sum",
-            "review_score": "mean",
-            "actual_delivery_time": "mean"
-        })
-        .reset_index()
-    )
-
-    category_revenue.rename(
-        columns={"price": "total_revenue"},
-        inplace=True
-    )
-
-    top_10_categories = (
-        category_revenue
-        .sort_values(
-            by="total_revenue",
-            ascending=False
-        )
-        .head(10)
-    )
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Review Score 10 Kategori Pendapatan Tertinggi")
-
-        review_chart_data = top_10_categories.sort_values(
-            by="review_score"
+        product_reviews_df["price"] = pd.to_numeric(
+            product_reviews_df["price"],
+            errors="coerce"
         )
 
-        fig, ax = plt.subplots(figsize=(10, 6))
-
-        sns.barplot(
-            x="review_score",
-            y="product_category_name_english",
-            data=review_chart_data,
-            hue="product_category_name_english",
-            palette="coolwarm_r",
-            legend=False,
-            ax=ax
+        product_reviews_df["review_score"] = pd.to_numeric(
+            product_reviews_df["review_score"],
+            errors="coerce"
         )
 
-        ax.set_title("Review Score Berdasarkan Kategori Produk")
-        ax.set_xlabel("Rata-rata Review Score")
-        ax.set_ylabel("Kategori Produk")
+        product_reviews_df["actual_delivery_time"] = pd.to_numeric(
+            product_reviews_df["actual_delivery_time"],
+            errors="coerce"
+        )
 
-        fig.tight_layout()
-        show_chart(fig)
+        # -------------------------------------------------
+        # Agregasi pendapatan dan review per kategori
+        # -------------------------------------------------
 
-    with col2:
-        st.subheader("Korelasi Waktu Pengantaran vs Skor Ulasan")
-
-        top_10_names = top_10_categories[
-            "product_category_name_english"
-        ].tolist()
-
-        filtered_reviews_df = product_reviews_df[
-            product_reviews_df[
-                "product_category_name_english"
-            ].isin(top_10_names)
-        ]
-
-        grouped_reviews = (
-            filtered_reviews_df
-            .groupby("order_id")
+        category_revenue = (
+            product_reviews_df
+            .groupby("product_category_name_english")
             .agg({
-                "actual_delivery_time": "mean",
-                "review_score": "mean"
+                "price": "sum",
+                "review_score": "mean",
+                "actual_delivery_time": "mean"
             })
-            .dropna()
             .reset_index()
         )
 
-        fig, ax = plt.subplots(figsize=(10, 6))
-
-        sns.regplot(
-            x="actual_delivery_time",
-            y="review_score",
-            data=grouped_reviews,
-            ax=ax,
-            scatter_kws={"alpha": 0.3},
-            line_kws={"color": "red"}
+        category_revenue = category_revenue.rename(
+            columns={
+                "price": "total_revenue"
+            }
         )
 
-        ax.set_title("Waktu Pengiriman vs Skor Ulasan")
-        ax.set_xlabel("Rata-rata Waktu Pengiriman")
-        ax.set_ylabel("Rata-rata Review Score")
+        # Mengambil 10 kategori dengan pendapatan tertinggi
+        top_10_categories = (
+            category_revenue
+            .sort_values(
+                by="total_revenue",
+                ascending=False
+            )
+            .head(10)
+        )
 
-        fig.tight_layout()
-        show_chart(fig)
+        if top_10_categories.empty:
+            st.warning(
+                "Tidak terdapat data kategori produk yang valid."
+            )
+            st.stop()
+
+        col1, col2 = st.columns(2)
+
+        # -------------------------------------------------
+        # Grafik 1: Review score 10 kategori teratas
+        # -------------------------------------------------
+
+        with col1:
+
+            st.subheader(
+                "Review Score 10 Kategori Pendapatan Tertinggi"
+            )
+
+            review_chart_data = (
+                top_10_categories
+                .dropna(subset=["review_score"])
+                .sort_values(
+                    by="review_score",
+                    ascending=True
+                )
+            )
+
+            if review_chart_data.empty:
+
+                st.warning(
+                    "Data review score tidak tersedia."
+                )
+
+            else:
+
+                fig, ax = plt.subplots(figsize=(10, 6))
+
+                sns.barplot(
+                    x="review_score",
+                    y="product_category_name_english",
+                    data=review_chart_data,
+                    hue="product_category_name_english",
+                    palette="coolwarm_r",
+                    legend=False,
+                    ax=ax
+                )
+
+                ax.set_title(
+                    "Review Score Berdasarkan Kategori Produk"
+                )
+
+                ax.set_xlabel(
+                    "Rata-rata Review Score"
+                )
+
+                ax.set_ylabel(
+                    "Kategori Produk"
+                )
+
+                fig.tight_layout()
+
+                show_chart(fig)
+
+        # -------------------------------------------------
+        # Grafik 2: Korelasi waktu pengiriman dan review
+        # -------------------------------------------------
+
+        with col2:
+
+            st.subheader(
+                "Korelasi Waktu Pengantaran vs Skor Ulasan"
+            )
+
+            top_10_names = (
+                top_10_categories[
+                    "product_category_name_english"
+                ]
+                .tolist()
+            )
+
+            filtered_reviews_df = product_reviews_df[
+                product_reviews_df[
+                    "product_category_name_english"
+                ].isin(top_10_names)
+            ]
+
+            grouped_reviews = (
+                filtered_reviews_df
+                .groupby("order_id")
+                .agg({
+                    "actual_delivery_time": "mean",
+                    "review_score": "mean"
+                })
+                .dropna()
+                .reset_index()
+            )
+
+            # Menghapus nilai yang tidak valid
+            grouped_reviews = grouped_reviews[
+                grouped_reviews[
+                    "actual_delivery_time"
+                ].apply(
+                    lambda x: pd.notna(x) and x >= 0
+                )
+                &
+                grouped_reviews[
+                    "review_score"
+                ].between(1, 5)
+            ]
+
+            if len(grouped_reviews) < 2:
+
+                st.warning(
+                    "Data tidak cukup untuk membuat grafik korelasi."
+                )
+
+            else:
+
+                # Membatasi data agar visualisasi lebih ringan
+                plot_data = grouped_reviews.sample(
+                    n=min(5000, len(grouped_reviews)),
+                    random_state=42
+                )
+
+                fig, ax = plt.subplots(figsize=(10, 6))
+
+                sns.regplot(
+                    x="actual_delivery_time",
+                    y="review_score",
+                    data=plot_data,
+                    ax=ax,
+                    scatter_kws={
+                        "alpha": 0.3,
+                        "s": 20
+                    },
+                    line_kws={
+                        "color": "red"
+                    }
+                )
+
+                ax.set_title(
+                    "Waktu Pengiriman vs Skor Ulasan"
+                )
+
+                ax.set_xlabel(
+                    "Rata-rata Waktu Pengiriman"
+                )
+
+                ax.set_ylabel(
+                    "Rata-rata Review Score"
+                )
+
+                fig.tight_layout()
+
+                show_chart(fig)
+
+    except Exception as e:
+        show_error(e)
+
+
+# =========================================================
+# 8. FOOTER
+# =========================================================
+
+st.divider()
+
+st.caption(
+    "E-Commerce Public Dataset Analysis | "
+    "Dashboard dibuat menggunakan Python, Pandas, "
+    "Matplotlib, Seaborn, dan Streamlit."
+)
